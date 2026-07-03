@@ -43,7 +43,7 @@
             const accessBtn = document.querySelector('.auth-trigger-text');
             if (user && accessBtn) {
                 accessBtn.innerText = `Go to Dashboard →`;
-                accessBtn.onclick = () => { window.location.href = "dashboard.html"; };
+                accessBtn.onclick = () => { window.location.href = "https://getfilo.github.io/SciMatch-dashboard"; };
             }
         });
 
@@ -63,12 +63,12 @@
 
           try {
               await signInWithEmailAndPassword(auth, emailInput, passwordInput);
-              window.location.href = "dashboard.html";
+              window.location.href = "https://getfilo.github.io/SciMatch-dashboard";
           } catch (error) {
               if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
                   try {
                       await createUserWithEmailAndPassword(auth, emailInput, passwordInput);
-                      window.location.href = "dashboard.html";
+                      window.location.href = "https://getfilo.github.io/SciMatch-dashboard";
                   } catch (createError) { alert(`Sign up Error: ${createError.message}`); }
               } else { alert(`Login Failed: ${error.message}`); }
           } finally { submitButton.innerText = "Login / Sign Up"; submitButton.disabled = false; }
@@ -129,7 +129,7 @@
                                       <div class="mt-4 text-[11px] font-bold uppercase tracking-wider text-neutral-400">Project Updates:</div>
                                       <div class="space-y-1 mt-1">${logsHtml || '<span class="text-xs italic text-neutral-300">No updates posted yet.</span>'}</div>
                                   </div>
-                                  <button onclick="window.location.href='dashboard.html'" 
+                                  <button onclick="window.location.href='https://getfilo.github.io/SciMatch-dashboard'" 
                                           class="text-xs uppercase font-bold underline underline-offset-4 hover:text-neutral-400 whitespace-nowrap pt-1 self-start sm:self-auto">
                                       Login To Join ↗
                                   </button>
