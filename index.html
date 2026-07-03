@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SciMatch | Share & Join Research Projects</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .serif-display { font-family: 'Playfair Display', serif; }
+    </style>
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import { getFirestore, collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyDJTYe7NXasSQKgi07k6jc-rJEkauQkz50",
+        authDomain: "scimatch-581c7.firebaseapp.com",
+        projectId: "scimatch-581c7",
+        storageBucket: "scimatch-581c7.firebasestorage.app",
+        messagingSenderId: "537736046061",
+        appId: "1:537736046061:web:2020b174e80b8bf39533e4",
+        measurementId: "G-F9EVJK8RV0"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+
+      window.handleAuth = (event) => handleAuthFlow(event, auth);
+      window.currentFilterLevel = "All";
+
+      window.addEventListener("DOMContentLoaded", () => {
+        fetchActiveProjects(db);
+        
+        onAuthStateChanged(auth, (user) => {
+            const accessBtn = document.querySelector('.auth-trigger-text');
+            if (user && accessBtn) {
+                accessBtn.innerText = `Go to Dashboard →`;
+                accessBtn.onclick = () => { window.location.href = "dashboard.html"; };
+            }
+        });
+
+        document.getElementById('filter-level').addEventListener('change', (e) => {
+            window.currentFilterLevel = e.target.value;
+            fetchActiveProjects(db);
+        });
+      });
+
+      async function handleAuthFlow(event, auth) {
+          event.preventDefault();
+          const emailInput = event.target.querySelector('input[type="email"]').value;
+          const passwordInput = event.target.querySelector('input[type="password"]').value;
+          const submitButton = event.target.querySelector('button[type="submit"]');
+          
+          submitButton.innerText = "Checking account..."; submitButton.disabled = true;
+
+          try {
+              await signInWithEmailAndPassword(auth, emailInput, passwordInput);
+              window.location.href = "dashboard.html";
+          } catch (error) {
+              if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
+                  try {
+                      await createUserWithEmailAndPassword(auth, emailInput, passwordInput);
+                      window.location.href = "dashboard.html";
+                  } catch (createError) { alert(`Sign up Error: ${createError.message}`); }
+              } else { alert(`Login Failed: ${error.message}`); }
+          } finally { submitButton.innerText = "Login / Sign Up"; submitButton.disabled = false; }
+      }
+
+      async function fetchActiveProjects(db) {
+          const feedContainer = document.getElementById('listings-feed');
+          feedContainer.innerHTML = '<div class="font-mono text-xs text-neutral-400 py-4">Loading active projects...</div>';
+
+          try {
+              let q = query(collection(db, "projects"), where("is_active", "==", true), orderBy("created_at", "desc"));
+              if (window.currentFilterLevel !== "All") {
+                  q = query(collection(db, "projects"), where("is_active", "==", true), where("target_level", "==", window.currentFilterLevel), orderBy("created_at", "desc"));
+              }
+              const querySnapshot = await getDocs(q);
+              
+              if (querySnapshot.empty) {
+                  feedContainer.innerHTML = '<div class="font-mono text-xs text-neutral-400 py-4">No projects found for this category.</div>';
+                  document.getElementById('listing-count').innerText = '0 Active';
+                  return;
+              }
+
+              document.getElementById('listing-count').innerText = `${querySnapshot.size} Active`;
+
+              let outputHTML = "";
+              for (let docObj of querySnapshot.docs) {
+                  const project = docObj.data();
+                  
+                  let logSnap = [];
+                  try {
+                      logSnap = await getDocs(query(collection(db, "progress_logs"), where("project_id", "==", docObj.id), orderBy("timestamp", "asc")));
+                  } catch (e) {}
+                  
+                  let logsHtml = "";
+                  if (logSnap && logSnap.forEach) {
+                      logSnap.forEach(l => {
+                          logsHtml += `<div class="mt-1 border-l border-black pl-2 text-xs font-mono text-neutral-600">${l.data().text}</div>`;
+                      });
+                  }
+
+                  outputHTML += `
+                      <article class="py-8 group border-b border-neutral-100">
+                          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 lg:gap-12 items-start">
+                              <div class="text-xs text-neutral-500 space-y-1 md:border-r border-neutral-100 md:pb-4">
+                                  <div class="text-black font-medium">Category: ${project.category || 'General'}</div>
+                                  <div class="bg-neutral-100 text-black px-1.5 py-0.5 inline-block text-[10px] uppercase font-bold tracking-wider rounded">${project.target_level || 'School'}</div>
+                                  <div class="text-neutral-700 font-medium">Posted By: ${project.owner_name || 'Anonymous'}</div>
+                                  <div>School/Org: ${project.institution || 'Independent'}</div>
+                              </div>
+                              <div class="md:col-span-3 flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-8">
+                                  <div>
+                                      <h3 class="serif-display text-xl sm:text-2xl font-medium text-black group-hover:underline transition decoration-1">
+                                          ${project.title}
+                                      </h3>
+                                      <p class="mt-2 text-sm text-neutral-500 leading-relaxed w-full lg:max-w-3xl font-light">
+                                          ${project.description}
+                                      </p>
+                                      <div class="mt-4 text-[11px] font-bold uppercase tracking-wider text-neutral-400">Project Updates:</div>
+                                      <div class="space-y-1 mt-1">${logsHtml || '<span class="text-xs italic text-neutral-300">No updates posted yet.</span>'}</div>
+                                  </div>
+                                  <button onclick="window.location.href='dashboard.html'" 
+                                          class="text-xs uppercase font-bold underline underline-offset-4 hover:text-neutral-400 whitespace-nowrap pt-1 self-start sm:self-auto">
+                                      Login To Join ↗
+                                  </button>
+                              </div>
+                          </div>
+                      </article>
+                  `;
+              }
+              feedContainer.innerHTML = outputHTML;
+          } catch (error) { feedContainer.innerHTML = `<div class="text-xs text-red-500 py-4">Error loading projects: ${error.message}</div>`; }
+      }
+    </script>
+</head>
+<body class="bg-[#FCFCFC] text-[#111111] antialiased min-h-screen flex flex-col justify-between">
+
+    <header class="border-b border-black py-6 px-4 md:px-12 w-full bg-white sticky top-0 z-40">
+        <div class="w-full flex items-baseline justify-between">
+            <div class="flex items-baseline space-x-2">
+                <span class="serif-display text-2xl font-bold tracking-tight">SciMatch</span>
+                <span class="text-xs text-neutral-400">| Find Partners</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <select id="filter-level" class="text-xs border border-black p-1 bg-transparent rounded">
+                    <option value="All">Show All Levels</option>
+                </select>
+                <nav class="flex items-center text-xs uppercase">
+                    <button onclick="document.getElementById('authModal').classList.remove('hidden')" class="auth-trigger-text font-bold underline underline-offset-4 hover:text-neutral-600 transition">
+                        Login / Sign Up →
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full px-4 md:px-12 py-12 md:py-16 flex-grow">
+        <div class="w-full lg:w-2/3 xl:w-1/2">
+            <h1 class="serif-display text-3xl sm:text-5xl lg:text-5xl font-normal tracking-tight text-black leading-[1.2]">
+                Connecting eager students and researchers to build great ideas.
+            </h1>
+            <p class="mt-6 text-sm sm:text-base text-neutral-500 leading-relaxed font-light">
+                Whether you are a middle school student building an engineering model or a college scientist tracking space data—SciMatch helps you find project partners, share simple updates, and build real science together.
+            </p>
+        </div>
+
+        <div class="mt-16 mb-8 flex justify-between items-end border-b border-neutral-200 pb-3 text-xs uppercase font-bold text-neutral-400 w-full">
+            <span>Available Projects</span>
+            <span id="listing-count">0 Active</span>
+        </div>
+
+        <section id="listings-feed" class="divide-y divide-neutral-200 w-full"></section>
+    </main>
+
+    <div id="authModal" class="hidden fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white border border-black max-w-sm w-full p-8 relative shadow-xl">
+            <button onclick="document.getElementById('authModal').classList.add('hidden')" class="absolute top-4 right-4 text-xs text-neutral-400 hover:text-black">
+                [ Close ]
+            </button>
+            <h3 class="serif-display text-xl font-medium text-black">Login / Sign Up</h3>
+            <p class="text-xs text-neutral-400 mt-2">Enter your email and password. If you don't have an account, we will create one for you automatically.</p>
+            
+            <form class="mt-8 space-y-6" onsubmit="window.handleAuth(event)">
+                <div class="border-b border-black pb-1">
+                    <label class="block text-[10px] uppercase font-bold text-neutral-400 mb-1">Email Address</label>
+                    <input type="email" required placeholder="name@email.com" class="w-full bg-transparent text-sm focus:outline-none">
+                </div>
+                <div class="border-b border-black pb-1">
+                    <label class="block text-[10px] uppercase font-bold text-neutral-400 mb-1">Password</label>
+                    <input type="password" required placeholder="••••••••" class="w-full bg-transparent text-sm focus:outline-none">
+                </div>
+                <button type="submit" class="w-full bg-black text-white py-3 text-xs uppercase font-bold hover:bg-neutral-800 transition">
+                    Enter Portal
+                </button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
